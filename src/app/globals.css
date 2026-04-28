@@ -1,0 +1,170 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: 'Cormorant Garamond', serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+  --accent: #FFFFFF;
+  --accent-dim: rgba(255,255,255,0.5);
+  --ink: #0A0A0A;
+  --ink-2: #111111;
+  --ink-3: #1C1C1C;
+  --surface: #FFFFFF;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--ink);
+  color: var(--surface);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+::selection { background: #fff; color: #000; }
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: var(--ink); }
+::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+
+.font-display { font-family: var(--font-display); }
+.font-mono { font-family: var(--font-mono); }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-up { animation: fadeUp 0.9s cubic-bezier(0.16,1,0.3,1) forwards; }
+.animate-fade-in { animation: fadeIn 1.4s ease forwards; }
+
+.stagger-1 { opacity: 0; animation-delay: 0.1s; animation-fill-mode: forwards; }
+.stagger-2 { opacity: 0; animation-delay: 0.3s; animation-fill-mode: forwards; }
+.stagger-3 { opacity: 0; animation-delay: 0.5s; animation-fill-mode: forwards; }
+.stagger-4 { opacity: 0; animation-delay: 0.7s; animation-fill-mode: forwards; }
+
+.project-card { transition: transform 0.4s cubic-bezier(0.16,1,0.3,1); cursor: pointer; }
+.project-card:hover { transform: translateY(-3px); }
+.img-zoom { transition: transform 0.7s cubic-bezier(0.16,1,0.3,1); }
+.project-card:hover .img-zoom { transform: scale(1.06); }
+.overlay-fade {
+  background: linear-gradient(to top, rgba(10,10,10,0.96) 0%, rgba(10,10,10,0.3) 55%, transparent 100%);
+  transition: background 0.4s ease;
+}
+.project-card:hover .overlay-fade {
+  background: linear-gradient(to top, rgba(10,10,10,0.99) 0%, rgba(10,10,10,0.6) 65%, rgba(10,10,10,0.05) 100%);
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  padding: 12px 28px;
+  background: #fff;
+  color: #000;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn-primary:hover { opacity: 0.85; }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  padding: 11px 28px;
+  background: transparent;
+  color: rgba(255,255,255,0.5);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border: 1px solid rgba(255,255,255,0.18);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+.btn-ghost:hover { border-color: rgba(255,255,255,0.5); color: #fff; }
+
+.btn-accent {
+  display: inline-flex;
+  align-items: center;
+  background: #fff;
+  color: #000;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 6px 14px;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn-accent:hover { opacity: 0.8; }
+
+.link-hover {
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.5);
+  text-decoration: none;
+  transition: border-color 0.2s, color 0.2s;
+}
+.link-hover:hover { border-color: rgba(255,255,255,0.4); color: #fff; }
+
+.nav-link {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.nav-link:hover, .nav-link.active { color: #fff; }
+
+.divider {
+  width: 36px;
+  height: 1px;
+  background: rgba(255,255,255,0.25);
+  margin: 18px 0;
+}
+
+.tag {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.07em;
+  padding: 3px 8px;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+}
+
+.admin-card-hover {
+  display: block;
+  padding: 24px;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 4px;
+  background: rgba(255,255,255,0.02);
+  text-decoration: none;
+  transition: border-color 0.2s;
+}
+.admin-card-hover:hover { border-color: rgba(255,255,255,0.25); }
+
+.card-hover {
+  border: 1px solid rgba(255,255,255,0.07);
+  transition: border-color 0.25s ease;
+}
+.card-hover:hover { border-color: rgba(255,255,255,0.2); }
