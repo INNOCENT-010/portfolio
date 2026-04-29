@@ -8,10 +8,7 @@
   --font-body: 'DM Sans', sans-serif;
   --font-mono: 'DM Mono', monospace;
   --accent: #FFFFFF;
-  --accent-dim: rgba(255,255,255,0.5);
   --ink: #0A0A0A;
-  --ink-2: #111111;
-  --ink-3: #1C1C1C;
   --surface: #FFFFFF;
 }
 
@@ -66,6 +63,7 @@ body {
 .btn-primary {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   padding: 12px 28px;
   background: #fff;
   color: #000;
@@ -78,12 +76,14 @@ body {
   border: none;
   cursor: pointer;
   transition: opacity 0.2s;
+  white-space: nowrap;
 }
 .btn-primary:hover { opacity: 0.85; }
 
 .btn-ghost {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   padding: 11px 28px;
   background: transparent;
   color: rgba(255,255,255,0.5);
@@ -96,6 +96,7 @@ body {
   border: 1px solid rgba(255,255,255,0.18);
   cursor: pointer;
   transition: border-color 0.2s, color 0.2s;
+  white-space: nowrap;
 }
 .btn-ghost:hover { border-color: rgba(255,255,255,0.5); color: #fff; }
 
@@ -168,3 +169,12 @@ body {
   transition: border-color 0.25s ease;
 }
 .card-hover:hover { border-color: rgba(255,255,255,0.2); }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  .hide-mobile { display: none !important; }
+  .mobile-full { width: 100% !important; }
+  .mobile-stack { flex-direction: column !important; }
+  .mobile-pad { padding: 24px 20px !important; }
+  .mobile-center { text-align: center !important; align-items: center !important; justify-content: center !important; }
+}

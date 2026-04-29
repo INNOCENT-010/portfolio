@@ -6,7 +6,7 @@ import Link from 'next/link'
 
 const categories = ['All', 'Frontend', 'Backend', 'Full Stack', 'DevOps']
 
-function AnimatedBackground() {
+function FightingBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -16,7 +16,7 @@ function AnimatedBackground() {
     if (!ctx) return
 
     let animId: number
-    let mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+    let t = 0
 
     const resize = () => {
       canvas.width = window.innerWidth
@@ -24,132 +24,227 @@ function AnimatedBackground() {
     }
     resize()
     window.addEventListener('resize', resize)
-    window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY })
 
-    // Particles
-    const particles = Array.from({ length: 80 }, () => ({
-      x: Math.random() * window.innerWidth,
-      y: Math.random() * window.innerHeight,
-      vx: (Math.random() - 0.5) * 0.4,
-      vy: (Math.random() - 0.5) * 0.4,
-      r: Math.random() * 1.5 + 0.3,
-      opacity: Math.random() * 0.5 + 0.1,
-    }))
+    // Fighter state
+    const f1 = { x: 0, y: 0, facing: 1, state: 'idle', stateT: 0, hitFlash: 0 }
+    const f2 = { x: 0, y: 0, facing: -1, state: 'idle', stateT: 0, hitFlash: 0 }
 
-    // Grid nodes
-    const cols = 12, rows = 8
-    const nodes = Array.from({ length: cols * rows }, (_, i) => ({
-      x: (i % cols) * (window.innerWidth / (cols - 1)),
-      y: Math.floor(i / cols) * (window.innerHeight / (rows - 1)),
-      ox: (i % cols) * (window.innerWidth / (cols - 1)),
-      oy: Math.floor(i / cols) * (window.innerHeight / (rows - 1)),
-    }))
+    // Fight sequence: idle → walk → punch/kick → recoil → repeat
+    const sequence = ['idle', 'walk', 'punch', 'recoil', 'idle', 'walk', 'kick', 'recoil']
+    let seqIdx1 = 0, seqIdx2 = 4 // offset so they alternate
+    let seqT = 0
+    const SEQ_DUR = 40 // frames per state
 
-    let t = 0
+    // Effects
+    const effects: { x: number; y: number; r: number; op: number; type: string }[] = []
+
+    const drawStickman = (
+      x: number, y: number, facing: number,
+      state: string, st: number, hitFlash: number,
+      color: string
+    ) => {
+      const s = 1 // scale
+      const H = 80 * s // total height
+      const head = H * 0.15
+      const torsoH = H * 0.28
+      const legH = H * 0.32
+      const armH = H * 0.24
+
+      const headY = y - H + head
+      const shoulderY = headY + head * 2.2
+      const hipY = shoulderY + torsoH
+      const footY = hipY + legH
+
+      // Animate limbs by state
+      let punchArm = 0, kickLeg = 0, lean = 0, bobY = 0
+
+      if (state === 'idle') {
+        bobY = Math.sin(st * 0.15) * 3
+        punchArm = Math.sin(st * 0.08) * 0.15
+      } else if (state === 'walk') {
+        bobY = Math.abs(Math.sin(st * 0.3)) * -4
+        punchArm = Math.sin(st * 0.3) * 0.5
+        kickLeg = Math.sin(st * 0.3) * 0.6
+      } else if (state === 'punch') {
+        const prog = Math.min(st / (SEQ_DUR * 0.5), 1)
+        punchArm = prog < 0.5 ? prog * 2 : 2 - prog * 2
+        lean = punchArm * 0.3 * facing
+      } else if (state === 'kick') {
+        const prog = Math.min(st / (SEQ_DUR * 0.5), 1)
+        kickLeg = prog < 0.5 ? prog * 2 : 2 - prog * 2
+        lean = kickLeg * 0.2 * facing
+      } else if (state === 'recoil') {
+        lean = -0.25 * facing
+        bobY = 5
+      }
+
+      const c = hitFlash > 0 ? '#ff4444' : color
+      ctx.strokeStyle = c
+      ctx.lineWidth = 2.5
+      ctx.lineCap = 'round'
+
+      const bY = bobY
+
+      // Head
+      ctx.beginPath()
+      ctx.arc(x, headY + bY, head, 0, Math.PI * 2)
+      ctx.stroke()
+
+      // Eyes
+      ctx.fillStyle = c
+      ctx.beginPath()
+      ctx.arc(x + facing * head * 0.4, headY + bY - 2, 1.5, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Torso (with lean)
+      const leanX = lean * 20
+      ctx.beginPath()
+      ctx.moveTo(x, headY + head * 2 + bY)
+      ctx.lineTo(x + leanX, hipY + bY)
+      ctx.stroke()
+
+      // Punch arm (front)
+      const punchExt = punchArm * facing * 40
+      const punchY = punchArm * -10
+      ctx.beginPath()
+      ctx.moveTo(x, shoulderY + bY)
+      ctx.lineTo(x + leanX + punchExt, shoulderY + punchY + bY)
+      ctx.stroke()
+
+      // Idle arm (back)
+      ctx.beginPath()
+      ctx.moveTo(x, shoulderY + bY)
+      ctx.lineTo(x - facing * 16 + leanX, shoulderY + 20 + bY)
+      ctx.stroke()
+
+      // Kick leg
+      const kickExt = kickLeg * facing * 36
+      const kickLiftY = kickLeg * -24
+      ctx.beginPath()
+      ctx.moveTo(x + leanX, hipY + bY)
+      ctx.lineTo(x + leanX + kickExt * 0.5, hipY + legH * 0.5 + kickLiftY * 0.5 + bY)
+      ctx.lineTo(x + leanX + kickExt, hipY + legH * 0.1 + kickLiftY + bY)
+      ctx.stroke()
+
+      // Standing leg
+      ctx.beginPath()
+      ctx.moveTo(x + leanX, hipY + bY)
+      ctx.lineTo(x + leanX - facing * 8, hipY + legH * 0.5 + bY)
+      ctx.lineTo(x + leanX, footY + bY)
+      ctx.stroke()
+
+      // Ground feet
+      ctx.beginPath()
+      ctx.moveTo(x + leanX - 6, footY + bY)
+      ctx.lineTo(x + leanX + 6, footY + bY)
+      ctx.stroke()
+    }
+
+    const spawnEffect = (x: number, y: number, type: string) => {
+      effects.push({ x, y, r: 0, op: 1, type })
+    }
 
     const draw = () => {
-      t += 0.008
+      t++
+      seqT++
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      // Update + draw grid nodes (displaced by mouse + wave)
-      nodes.forEach(n => {
-        const dx = mouse.x - n.ox
-        const dy = mouse.y - n.oy
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        const force = Math.max(0, 180 - dist) / 180
-        n.x = n.ox + Math.sin(t + n.ox * 0.008) * 18 - dx * force * 0.12
-        n.y = n.oy + Math.cos(t + n.oy * 0.008) * 14 - dy * force * 0.12
-      })
+      const cx = canvas.width / 2
+      const groundY = canvas.height * 0.72
 
-      // Draw grid lines
-      ctx.strokeStyle = 'rgba(255,255,255,0.06)'
-      ctx.lineWidth = 0.5
-      for (let r = 0; r < rows; r++) {
-        ctx.beginPath()
-        for (let c = 0; c < cols; c++) {
-          const n = nodes[r * cols + c]
-          c === 0 ? ctx.moveTo(n.x, n.y) : ctx.lineTo(n.x, n.y)
+      // Position fighters
+      const gap = 90
+      f1.x = cx - gap
+      f1.y = groundY
+      f2.x = cx + gap
+      f2.y = groundY
+
+      // Advance sequence
+      if (seqT >= SEQ_DUR) {
+        seqT = 0
+        seqIdx1 = (seqIdx1 + 1) % sequence.length
+        seqIdx2 = (seqIdx2 + 1) % sequence.length
+
+        // Spawn hit effect when punch/kick lands
+        const s1 = sequence[seqIdx1]
+        const s2 = sequence[seqIdx2]
+        if (s1 === 'punch' || s1 === 'kick') {
+          spawnEffect(f2.x, f2.y - 50, s1 === 'kick' ? 'kick' : 'punch')
+          f2.hitFlash = 8
         }
-        ctx.stroke()
+        if (s2 === 'punch' || s2 === 'kick') {
+          spawnEffect(f1.x, f1.y - 50, s2 === 'kick' ? 'kick' : 'punch')
+          f1.hitFlash = 8
+        }
       }
-      for (let c = 0; c < cols; c++) {
+
+      f1.state = sequence[seqIdx1]
+      f2.state = sequence[seqIdx2]
+      if (f1.hitFlash > 0) f1.hitFlash--
+      if (f2.hitFlash > 0) f2.hitFlash--
+
+      // Ground line
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(0, groundY + 2)
+      ctx.lineTo(canvas.width, groundY + 2)
+      ctx.stroke()
+
+      // Draw fighters
+      drawStickman(f1.x, f1.y, 1, f1.state, seqT, f1.hitFlash, 'rgba(255,255,255,0.7)')
+      drawStickman(f2.x, f2.y, -1, f2.state, seqT, f2.hitFlash, 'rgba(255,255,255,0.7)')
+
+      // VS text
+      ctx.fillStyle = 'rgba(255,255,255,0.06)'
+      ctx.font = `bold ${Math.min(canvas.width * 0.08, 80)}px serif`
+      ctx.textAlign = 'center'
+      ctx.fillText('VS', cx, groundY - 60)
+
+      // Update + draw effects
+      for (let i = effects.length - 1; i >= 0; i--) {
+        const e = effects[i]
+        e.r += 3
+        e.op -= 0.04
+        if (e.op <= 0) { effects.splice(i, 1); continue }
+
+        ctx.strokeStyle = `rgba(255,255,255,${e.op * 0.6})`
+        ctx.lineWidth = 1
         ctx.beginPath()
-        for (let r = 0; r < rows; r++) {
-          const n = nodes[r * cols + c]
-          r === 0 ? ctx.moveTo(n.x, n.y) : ctx.lineTo(n.x, n.y)
-        }
+        ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2)
         ctx.stroke()
-      }
 
-      // Draw node dots
-      nodes.forEach(n => {
-        const dx = mouse.x - n.x
-        const dy = mouse.y - n.y
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        const glow = Math.max(0, 1 - dist / 200)
-        ctx.beginPath()
-        ctx.arc(n.x, n.y, 1.5 + glow * 3, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(255,255,255,${0.08 + glow * 0.5})`
-        ctx.fill()
-      })
-
-      // Draw connection lines between nearby particles
-      particles.forEach((p, i) => {
-        p.x += p.vx
-        p.y += p.vy
-        if (p.x < 0 || p.x > canvas.width) p.vx *= -1
-        if (p.y < 0 || p.y > canvas.height) p.vy *= -1
-
-        // Mouse attraction
-        const dx = mouse.x - p.x
-        const dy = mouse.y - p.y
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        if (dist < 150) {
-          p.vx += dx * 0.00015
-          p.vy += dy * 0.00015
-        }
-
-        // Draw particle
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(255,255,255,${p.opacity})`
-        ctx.fill()
-
-        // Connect nearby particles
-        for (let j = i + 1; j < particles.length; j++) {
-          const q = particles[j]
-          const dx2 = p.x - q.x
-          const dy2 = p.y - q.y
-          const d = Math.sqrt(dx2 * dx2 + dy2 * dy2)
-          if (d < 120) {
+        // Star burst
+        if (e.type === 'punch') {
+          for (let j = 0; j < 6; j++) {
+            const angle = (j / 6) * Math.PI * 2 + t * 0.1
             ctx.beginPath()
-            ctx.moveTo(p.x, p.y)
-            ctx.lineTo(q.x, q.y)
-            ctx.strokeStyle = `rgba(255,255,255,${0.12 * (1 - d / 120)})`
-            ctx.lineWidth = 0.4
+            ctx.moveTo(e.x, e.y)
+            ctx.lineTo(e.x + Math.cos(angle) * e.r * 0.8, e.y + Math.sin(angle) * e.r * 0.8)
             ctx.stroke()
           }
+        } else {
+          // Kick — arc
+          ctx.beginPath()
+          ctx.arc(e.x, e.y, e.r * 0.6, 0, Math.PI)
+          ctx.stroke()
+        }
+      }
+
+      // Subtle dust particles on ground
+      ctx.fillStyle = 'rgba(255,255,255,0.04)'
+      ;[f1.x, f2.x].forEach(fx => {
+        if (f1.state === 'walk' || f2.state === 'walk') {
+          ctx.beginPath()
+          ctx.arc(fx + (Math.random() - 0.5) * 20, groundY + 2, Math.random() * 3, 0, Math.PI * 2)
+          ctx.fill()
         }
       })
-
-      // Mouse ripple
-      const rippleR = (Math.sin(t * 3) * 0.5 + 0.5) * 60 + 20
-      ctx.beginPath()
-      ctx.arc(mouse.x, mouse.y, rippleR, 0, Math.PI * 2)
-      ctx.strokeStyle = `rgba(255,255,255,${0.06 * (1 - rippleR / 80)})`
-      ctx.lineWidth = 1
-      ctx.stroke()
-      ctx.beginPath()
-      ctx.arc(mouse.x, mouse.y, rippleR * 1.6, 0, Math.PI * 2)
-      ctx.strokeStyle = `rgba(255,255,255,${0.03})`
-      ctx.lineWidth = 0.5
-      ctx.stroke()
 
       animId = requestAnimationFrame(draw)
     }
 
     draw()
-
     return () => {
       cancelAnimationFrame(animId)
       window.removeEventListener('resize', resize)
@@ -159,7 +254,7 @@ function AnimatedBackground() {
   return (
     <canvas ref={canvasRef} style={{
       position: 'fixed', inset: 0, zIndex: 0,
-      pointerEvents: 'none', opacity: 0.9,
+      pointerEvents: 'none',
     }} />
   )
 }
@@ -190,66 +285,50 @@ export default function PortfolioPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--ink)', paddingTop: '90px', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--ink)', paddingTop: '80px', position: 'relative', overflow: 'hidden' }}>
 
-      <AnimatedBackground />
+      <FightingBackground />
 
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: '1100px', margin: '0 auto', padding: '40px 48px 100px' }}>
+      <div style={{ position: 'relative', zIndex: 1, maxWidth: '1100px', margin: '0 auto', padding: 'clamp(32px, 6vw, 48px) clamp(16px, 4vw, 48px) 100px' }}>
 
         {/* Header */}
-        <div style={{ marginBottom: '52px' }}>
-          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6rem', color: 'rgba(255,255,255,0.28)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '12px' }}>
-            Work
-          </p>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.5rem, 6vw, 4.5rem)', fontWeight: 300, color: '#fff', lineHeight: 0.95, marginBottom: '6px' }}>
-            All
-          </h1>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.5rem, 6vw, 4.5rem)', fontWeight: 300, fontStyle: 'italic', lineHeight: 0.95, color: 'rgba(255,255,255,0.3)' }}>
-            Projects
-          </h1>
+        <div style={{ marginBottom: '40px' }}>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.58rem', color: 'rgba(255,255,255,0.28)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '10px' }}>Work</p>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 8vw, 4.5rem)', fontWeight: 300, color: '#fff', lineHeight: 0.95, marginBottom: '4px' }}>All</h1>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 8vw, 4.5rem)', fontWeight: 300, fontStyle: 'italic', lineHeight: 0.95, color: 'rgba(255,255,255,0.3)' }}>Projects</h1>
         </div>
 
         {/* Filters */}
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '48px' }}>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '40px' }}>
           {categories.map(cat => (
             <button key={cat} onClick={() => filter(cat)}
               style={{
-                fontFamily: 'var(--font-mono)', fontSize: '0.62rem',
-                padding: '7px 16px', cursor: 'pointer',
-                letterSpacing: '0.08em', textTransform: 'uppercase',
+                fontFamily: 'var(--font-mono)', fontSize: '0.6rem', padding: '6px 14px',
+                cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase',
                 border: 'none', outline: 'none',
-                background: active === cat ? '#fff' : 'rgba(255,255,255,0.05)',
+                background: active === cat ? '#fff' : 'rgba(255,255,255,0.06)',
                 color: active === cat ? '#000' : 'rgba(255,255,255,0.4)',
                 transition: 'all 0.2s',
               }}>
               {cat}
             </button>
           ))}
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6rem', color: 'rgba(255,255,255,0.18)', alignSelf: 'center', marginLeft: '8px' }}>
-            {filtered.length} project{filtered.length !== 1 ? 's' : ''}
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.58rem', color: 'rgba(255,255,255,0.18)', alignSelf: 'center', marginLeft: '6px' }}>
+            {filtered.length} projects
           </span>
         </div>
 
-        {/* Projects list */}
+        {/* List */}
         {loading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} style={{ height: '76px', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.04)' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} style={{ height: '72px', background: 'rgba(255,255,255,0.02)' }} />
             ))}
           </div>
         ) : filtered.length === 0 ? (
           <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'rgba(255,255,255,0.2)' }}>No projects found.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {/* Column headers */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '24px', padding: '0 24px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: '2px' }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.55rem', color: 'rgba(255,255,255,0.15)', letterSpacing: '0.1em', width: '28px' }}>#</span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.55rem', color: 'rgba(255,255,255,0.15)', letterSpacing: '0.1em', width: '72px' }}>Preview</span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.55rem', color: 'rgba(255,255,255,0.15)', letterSpacing: '0.1em', flex: 1 }}>Project</span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.55rem', color: 'rgba(255,255,255,0.15)', letterSpacing: '0.1em', width: '180px' }}>Stack</span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.55rem', color: 'rgba(255,255,255,0.15)', letterSpacing: '0.1em', width: '80px', textAlign: 'right' }}>Links</span>
-            </div>
-
             {filtered.map((p, i) => {
               const thumb = p.image_url || p.media?.[0]?.url
               const isHovered = hovered === p.id
@@ -259,19 +338,20 @@ export default function PortfolioPage() {
                     onMouseEnter={() => setHovered(p.id)}
                     onMouseLeave={() => setHovered(null)}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: '24px',
-                      padding: '16px 24px',
+                      display: 'flex', alignItems: 'center',
+                      gap: 'clamp(12px, 2vw, 24px)',
+                      padding: 'clamp(12px, 2vw, 16px) clamp(12px, 2vw, 20px)',
                       borderBottom: '1px solid rgba(255,255,255,0.04)',
-                      background: isHovered ? 'rgba(255,255,255,0.04)' : 'transparent',
-                      transition: 'background 0.25s',
+                      background: isHovered ? 'rgba(255,255,255,0.04)' : 'rgba(10,10,10,0.6)',
+                      backdropFilter: 'blur(8px)',
+                      transition: 'background 0.2s',
                       cursor: 'pointer',
                       position: 'relative',
                     }}>
 
-                    {/* Hover left bar */}
+                    {/* Left bar */}
                     <div style={{
-                      position: 'absolute', left: 0, top: 0, bottom: 0,
-                      width: '2px',
+                      position: 'absolute', left: 0, top: 0, bottom: 0, width: '2px',
                       background: '#fff',
                       transform: isHovered ? 'scaleY(1)' : 'scaleY(0)',
                       transition: 'transform 0.25s cubic-bezier(0.16,1,0.3,1)',
@@ -279,72 +359,43 @@ export default function PortfolioPage() {
                     }} />
 
                     {/* Index */}
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.62rem', color: isHovered ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.15)', width: '28px', flexShrink: 0, transition: 'color 0.2s' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6rem', color: 'rgba(255,255,255,0.15)', width: '24px', flexShrink: 0 }}>
                       {String(i + 1).padStart(2, '0')}
                     </span>
 
                     {/* Thumbnail */}
-                    <div style={{ width: '72px', height: '46px', flexShrink: 0, overflow: 'hidden', background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ width: 'clamp(52px, 8vw, 72px)', height: 'clamp(36px, 5vw, 46px)', flexShrink: 0, overflow: 'hidden', background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.06)' }}>
                       {thumb ? (
                         <img src={thumb} alt={p.title}
                           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', transform: isHovered ? 'scale(1.1)' : 'scale(1)', transition: 'transform 0.5s cubic-bezier(0.16,1,0.3,1)' }} />
                       ) : (
                         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: 'rgba(255,255,255,0.05)', fontStyle: 'italic' }}>{p.title[0]}</span>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: 'rgba(255,255,255,0.05)', fontStyle: 'italic' }}>{p.title[0]}</span>
                         </div>
                       )}
                     </div>
 
                     {/* Title + desc */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <h3 style={{
-                        fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 300,
-                        color: isHovered ? '#fff' : 'rgba(255,255,255,0.8)',
-                        marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        transition: 'color 0.2s',
-                      }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(0.9rem, 2.5vw, 1.05rem)', fontWeight: 300, color: isHovered ? '#fff' : 'rgba(255,255,255,0.8)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', transition: 'color 0.2s' }}>
                         {p.title}
                       </h3>
-                      <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.72rem', color: 'rgba(255,255,255,0.28)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 300 }}>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: 'clamp(0.65rem, 1.5vw, 0.72rem)', color: 'rgba(255,255,255,0.28)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 300 }}>
                         {p.description}
                       </p>
                     </div>
 
-                    {/* Tags */}
-                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0, width: '180px', flexWrap: 'wrap' }}>
-                      {p.tech_stack.slice(0, 3).map(t => (
-                        <span key={t} style={{
-                          fontFamily: 'var(--font-mono)', fontSize: '0.58rem', letterSpacing: '0.06em',
-                          padding: '2px 7px', textTransform: 'uppercase',
-                          border: `1px solid ${isHovered ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)'}`,
-                          color: isHovered ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.3)',
-                          transition: 'all 0.2s',
-                        }}>
+                    {/* Tags — hide on small mobile */}
+                    <div className="hide-mobile" style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                      {p.tech_stack.slice(0, 2).map(t => (
+                        <span key={t} style={{ fontFamily: 'var(--font-mono)', fontSize: '0.55rem', padding: '2px 6px', border: `1px solid ${isHovered ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)'}`, color: isHovered ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: '0.05em', transition: 'all 0.2s' }}>
                           {t}
                         </span>
                       ))}
                     </div>
 
-                    {/* Links */}
-                    <div style={{ display: 'flex', gap: '10px', flexShrink: 0, width: '80px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                      {p.github_url && (
-                        <a href={p.github_url} target="_blank" rel="noopener noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          style={{ fontFamily: 'var(--font-mono)', fontSize: '0.58rem', color: 'rgba(255,255,255,0.28)', textDecoration: 'none', letterSpacing: '0.06em', textTransform: 'uppercase', transition: 'color 0.2s' }}
-                          onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
-                          onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.28)')}>
-                          GH
-                        </a>
-                      )}
-                      {p.live_url && (
-                        <a href={p.live_url} target="_blank" rel="noopener noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          style={{ fontFamily: 'var(--font-mono)', fontSize: '0.58rem', color: isHovered ? '#fff' : 'rgba(255,255,255,0.35)', textDecoration: 'none', letterSpacing: '0.06em', textTransform: 'uppercase', transition: 'color 0.2s' }}>
-                          ↗
-                        </a>
-                      )}
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: isHovered ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.1)', transition: 'all 0.25s', transform: isHovered ? 'translateX(3px)' : 'translateX(0)' }}>→</span>
-                    </div>
+                    {/* Arrow */}
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: isHovered ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.1)', flexShrink: 0, transition: 'all 0.25s', transform: isHovered ? 'translateX(4px)' : 'translateX(0)' }}>→</span>
                   </div>
                 </Link>
               )
