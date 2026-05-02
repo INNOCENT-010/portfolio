@@ -66,6 +66,7 @@ export type Profile = {
   available: boolean
   hero_image_url?: string
   profile_image_url?: string
+  cv_url?: string
 }
 
 export type ContactMessage = {

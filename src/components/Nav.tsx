@@ -12,6 +12,7 @@ export default function Nav() {
     { href: '/', label: 'Home' },
     { href: '/about', label: 'About' },
     { href: '/portfolio', label: 'Work' },
+    { href: '/cv', label: 'CV' },
   ]
 
   return (
@@ -28,7 +29,7 @@ export default function Nav() {
           innocent<span style={{ color: 'rgba(255,255,255,0.3)' }}>.</span>
         </Link>
 
-        {/* Desktop nav */}
+        {/* Desktop */}
         <nav style={{ display: 'flex', alignItems: 'center', gap: '28px' }} className="hide-mobile">
           {links.map(l => (
             <Link key={l.href} href={l.href} className={`nav-link ${path === l.href ? 'active' : ''}`}>
@@ -41,9 +42,8 @@ export default function Nav() {
         </nav>
 
         {/* Mobile hamburger */}
-        <button
-          onClick={() => setOpen(o => !o)}
-          style={{ display: 'none', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', flexDirection: 'column', gap: '5px' }}
+        <button onClick={() => setOpen(o => !o)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', flexDirection: 'column', gap: '5px', display: 'none' }}
           className="mobile-hamburger">
           <span style={{ display: 'block', width: '22px', height: '1px', background: '#fff', transition: 'transform 0.2s, opacity 0.2s', transform: open ? 'rotate(45deg) translateY(6px)' : 'none' }} />
           <span style={{ display: 'block', width: '22px', height: '1px', background: '#fff', opacity: open ? 0 : 1, transition: 'opacity 0.2s' }} />
@@ -51,17 +51,12 @@ export default function Nav() {
         </button>
       </header>
 
-      {/* Mobile menu overlay */}
+      {/* Mobile menu */}
       {open && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 49,
-          background: '#0A0A0A',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '32px',
-          paddingTop: '70px',
-        }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 49, background: '#0A0A0A', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '28px', paddingTop: '70px' }}>
           {links.map(l => (
             <Link key={l.href} href={l.href} onClick={() => setOpen(false)}
-              style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', fontWeight: 300, color: path === l.href ? '#fff' : 'rgba(255,255,255,0.35)', textDecoration: 'none', letterSpacing: '0.05em' }}>
+              style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', fontWeight: 300, color: path === l.href ? '#fff' : 'rgba(255,255,255,0.3)', textDecoration: 'none' }}>
               {l.label}
             </Link>
           ))}

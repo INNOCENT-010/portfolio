@@ -25,221 +25,317 @@ function FightingBackground() {
     resize()
     window.addEventListener('resize', resize)
 
-    // Fighter state
-    const f1 = { x: 0, y: 0, facing: 1, state: 'idle', stateT: 0, hitFlash: 0 }
-    const f2 = { x: 0, y: 0, facing: -1, state: 'idle', stateT: 0, hitFlash: 0 }
+    const effects: { x: number; y: number; r: number; op: number; type: string; vx: number; vy: number }[] = []
 
-    // Fight sequence: idle → walk → punch/kick → recoil → repeat
-    const sequence = ['idle', 'walk', 'punch', 'recoil', 'idle', 'walk', 'kick', 'recoil']
-    let seqIdx1 = 0, seqIdx2 = 4 // offset so they alternate
-    let seqT = 0
-    const SEQ_DUR = 40 // frames per state
+    // Fight choreography — richer move set
+    const moves = [
+      { name: 'idle', dur: 50 },
+      { name: 'approach', dur: 40 },
+      { name: 'jab', dur: 25 },
+      { name: 'idle', dur: 20 },
+      { name: 'cross', dur: 30 },
+      { name: 'recoil', dur: 25 },
+      { name: 'idle', dur: 20 },
+      { name: 'kick_high', dur: 35 },
+      { name: 'recoil', dur: 25 },
+      { name: 'idle', dur: 20 },
+      { name: 'uppercut', dur: 30 },
+      { name: 'knockback', dur: 40 },
+      { name: 'recover', dur: 30 },
+    ]
 
-    // Effects
-    const effects: { x: number; y: number; r: number; op: number; type: string }[] = []
+    let moveIdx1 = 0, moveIdx2 = 6
+    let moveT = 0
 
-    const drawStickman = (
-      x: number, y: number, facing: number,
-      state: string, st: number, hitFlash: number,
-      color: string
+    const spawnHit = (x: number, y: number, type: string) => {
+      // Main burst
+      effects.push({ x, y, r: 0, op: 1, type, vx: 0, vy: 0 })
+      // Flying sparks
+      for (let i = 0; i < 6; i++) {
+        const angle = Math.random() * Math.PI * 2
+        const speed = 2 + Math.random() * 3
+        effects.push({ x, y, r: 1, op: 0.8, type: 'spark', vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 1 })
+      }
+    }
+
+    const drawFighter = (
+      x: number, y: number,
+      facing: number,
+      move: string, mt: number, dur: number,
+      hitFlash: number,
     ) => {
-      const s = 1 // scale
-      const H = 80 * s // total height
-      const head = H * 0.15
+      const H = Math.min(canvas.height * 0.18, 100)
+      const head = H * 0.14
       const torsoH = H * 0.28
       const legH = H * 0.32
-      const armH = H * 0.24
 
-      const headY = y - H + head
+      const headY = y - H
       const shoulderY = headY + head * 2.2
       const hipY = shoulderY + torsoH
       const footY = hipY + legH
 
-      // Animate limbs by state
-      let punchArm = 0, kickLeg = 0, lean = 0, bobY = 0
+      const prog = mt / dur
+      const ease = prog < 0.5 ? prog * 2 : 2 - prog * 2
 
-      if (state === 'idle') {
-        bobY = Math.sin(st * 0.15) * 3
-        punchArm = Math.sin(st * 0.08) * 0.15
-      } else if (state === 'walk') {
-        bobY = Math.abs(Math.sin(st * 0.3)) * -4
-        punchArm = Math.sin(st * 0.3) * 0.5
-        kickLeg = Math.sin(st * 0.3) * 0.6
-      } else if (state === 'punch') {
-        const prog = Math.min(st / (SEQ_DUR * 0.5), 1)
-        punchArm = prog < 0.5 ? prog * 2 : 2 - prog * 2
-        lean = punchArm * 0.3 * facing
-      } else if (state === 'kick') {
-        const prog = Math.min(st / (SEQ_DUR * 0.5), 1)
-        kickLeg = prog < 0.5 ? prog * 2 : 2 - prog * 2
-        lean = kickLeg * 0.2 * facing
-      } else if (state === 'recoil') {
-        lean = -0.25 * facing
-        bobY = 5
+      let frontArmX = 0, frontArmY = 0
+      let backArmX = -facing * 12, backArmY = 15
+      let frontLegX = 0, frontLegY = legH
+      let backLegX = -facing * 8, backLegY = legH
+      let bodyLean = 0, bobY = 0, knockX = 0
+
+      if (move === 'idle') {
+        bobY = Math.sin(mt * 0.12) * 2.5
+        frontArmX = facing * 8 + Math.sin(mt * 0.08) * 3
+        frontArmY = 20
+        backArmX = -facing * 10
+        backArmY = 18
+      } else if (move === 'approach') {
+        bobY = Math.abs(Math.sin(mt * 0.25)) * -4
+        frontArmX = facing * (10 + Math.sin(mt * 0.25) * 15)
+        frontArmY = 20 + Math.sin(mt * 0.25) * 5
+        frontLegX = facing * Math.sin(mt * 0.25) * 18
+        backLegX = -facing * Math.sin(mt * 0.25) * 14
+      } else if (move === 'jab') {
+        frontArmX = facing * (15 + ease * 38)
+        frontArmY = 5 - ease * 8
+        bodyLean = ease * 0.2 * facing
+        frontLegX = facing * 6
+      } else if (move === 'cross') {
+        frontArmX = facing * (10 + ease * 45)
+        frontArmY = 2 - ease * 5
+        bodyLean = ease * 0.28 * facing
+        frontLegX = facing * 10
+        backLegX = -facing * 4
+      } else if (move === 'uppercut') {
+        frontArmX = facing * (8 + ease * 20)
+        frontArmY = 20 - ease * 32
+        bodyLean = ease * 0.15 * facing
+        bobY = -ease * 8
+      } else if (move === 'kick_high') {
+        frontLegX = facing * ease * 50
+        frontLegY = legH * (1 - ease * 0.7)
+        bodyLean = ease * 0.2 * facing
+        backArmX = -facing * 20
+        backArmY = 5
+        frontArmX = -facing * 15
+        frontArmY = 8
+      } else if (move === 'recoil') {
+        bodyLean = -ease * 0.3 * facing
+        bobY = ease * 6
+        knockX = -facing * ease * 12
+        frontArmX = -facing * 8
+        frontArmY = 18
+      } else if (move === 'knockback') {
+        bodyLean = -0.35 * facing
+        knockX = -facing * (ease * 28)
+        bobY = Math.sin(prog * Math.PI) * 10
+        frontArmX = -facing * 15
+        backArmX = facing * 5
+        frontArmY = 5
+      } else if (move === 'recover') {
+        bodyLean = -0.35 * facing * (1 - prog)
+        knockX = -facing * 28 * (1 - prog)
+        frontArmX = facing * 8 * prog
+        frontArmY = 20
       }
 
-      const c = hitFlash > 0 ? '#ff4444' : color
-      ctx.strokeStyle = c
-      ctx.lineWidth = 2.5
-      ctx.lineCap = 'round'
+      const c = hitFlash > 0
+        ? `rgba(255,${80 - hitFlash * 8},${80 - hitFlash * 8},${0.9})`
+        : 'rgba(255,255,255,0.85)'
 
+      ctx.strokeStyle = c
+      ctx.lineWidth = 2.2
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+
+      const ox = knockX
       const bY = bobY
+      const lean = bodyLean * 25
+
+      // Shadow
+      ctx.fillStyle = 'rgba(255,255,255,0.06)'
+      ctx.beginPath()
+      ctx.ellipse(x + ox, footY, 18, 4, 0, 0, Math.PI * 2)
+      ctx.fill()
 
       // Head
       ctx.beginPath()
-      ctx.arc(x, headY + bY, head, 0, Math.PI * 2)
+      ctx.arc(x + ox + lean * 0.3, headY + bY, head, 0, Math.PI * 2)
       ctx.stroke()
 
       // Eyes
       ctx.fillStyle = c
       ctx.beginPath()
-      ctx.arc(x + facing * head * 0.4, headY + bY - 2, 1.5, 0, Math.PI * 2)
+      ctx.arc(x + ox + lean * 0.3 + facing * head * 0.45, headY + bY - 1, 1.5, 0, Math.PI * 2)
       ctx.fill()
 
-      // Torso (with lean)
-      const leanX = lean * 20
+      // Torso
       ctx.beginPath()
-      ctx.moveTo(x, headY + head * 2 + bY)
-      ctx.lineTo(x + leanX, hipY + bY)
+      ctx.moveTo(x + ox, headY + head * 2.1 + bY)
+      ctx.lineTo(x + ox + lean, hipY + bY)
       ctx.stroke()
 
-      // Punch arm (front)
-      const punchExt = punchArm * facing * 40
-      const punchY = punchArm * -10
+      // Front arm
+      const elbowX = x + ox + lean * 0.5 + frontArmX * 0.5
+      const elbowY = shoulderY + bY + frontArmY * 0.5
       ctx.beginPath()
-      ctx.moveTo(x, shoulderY + bY)
-      ctx.lineTo(x + leanX + punchExt, shoulderY + punchY + bY)
+      ctx.moveTo(x + ox, shoulderY + bY)
+      ctx.quadraticCurveTo(elbowX, elbowY, x + ox + lean + frontArmX, shoulderY + bY + frontArmY)
       ctx.stroke()
 
-      // Idle arm (back)
+      // Back arm
       ctx.beginPath()
-      ctx.moveTo(x, shoulderY + bY)
-      ctx.lineTo(x - facing * 16 + leanX, shoulderY + 20 + bY)
+      ctx.moveTo(x + ox, shoulderY + bY)
+      ctx.lineTo(x + ox + lean * 0.3 + backArmX, shoulderY + bY + backArmY)
       ctx.stroke()
 
-      // Kick leg
-      const kickExt = kickLeg * facing * 36
-      const kickLiftY = kickLeg * -24
+      // Front leg
+      const kneeFX = x + ox + lean + frontLegX * 0.5
+      const kneeFY = hipY + bY + frontLegY * 0.5
       ctx.beginPath()
-      ctx.moveTo(x + leanX, hipY + bY)
-      ctx.lineTo(x + leanX + kickExt * 0.5, hipY + legH * 0.5 + kickLiftY * 0.5 + bY)
-      ctx.lineTo(x + leanX + kickExt, hipY + legH * 0.1 + kickLiftY + bY)
+      ctx.moveTo(x + ox + lean, hipY + bY)
+      ctx.quadraticCurveTo(kneeFX, kneeFY, x + ox + lean + frontLegX, hipY + bY + frontLegY)
       ctx.stroke()
 
-      // Standing leg
+      // Back leg
       ctx.beginPath()
-      ctx.moveTo(x + leanX, hipY + bY)
-      ctx.lineTo(x + leanX - facing * 8, hipY + legH * 0.5 + bY)
-      ctx.lineTo(x + leanX, footY + bY)
+      ctx.moveTo(x + ox + lean, hipY + bY)
+      ctx.lineTo(x + ox + lean * 0.5 + backLegX, hipY + bY + backLegY)
       ctx.stroke()
 
-      // Ground feet
+      // Foot lines
+      ctx.lineWidth = 2
       ctx.beginPath()
-      ctx.moveTo(x + leanX - 6, footY + bY)
-      ctx.lineTo(x + leanX + 6, footY + bY)
+      ctx.moveTo(x + ox + lean + frontLegX - 5, hipY + bY + frontLegY)
+      ctx.lineTo(x + ox + lean + frontLegX + facing * 8, hipY + bY + frontLegY)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(x + ox + lean * 0.5 + backLegX - 4, hipY + bY + backLegY)
+      ctx.lineTo(x + ox + lean * 0.5 + backLegX + facing * 6, hipY + bY + backLegY)
       ctx.stroke()
     }
 
-    const spawnEffect = (x: number, y: number, type: string) => {
-      effects.push({ x, y, r: 0, op: 1, type })
-    }
+    let hitFlash1 = 0, hitFlash2 = 0
 
     const draw = () => {
       t++
-      seqT++
+      moveT++
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
       const cx = canvas.width / 2
-      const groundY = canvas.height * 0.72
+      const groundY = canvas.height * 0.78
 
-      // Position fighters
-      const gap = 90
-      f1.x = cx - gap
-      f1.y = groundY
-      f2.x = cx + gap
-      f2.y = groundY
+      const curMove1 = moves[moveIdx1]
+      const curMove2 = moves[moveIdx2]
 
-      // Advance sequence
-      if (seqT >= SEQ_DUR) {
-        seqT = 0
-        seqIdx1 = (seqIdx1 + 1) % sequence.length
-        seqIdx2 = (seqIdx2 + 1) % sequence.length
+      if (moveT >= curMove1.dur && moveT >= curMove2.dur) {
+        const old1 = moves[moveIdx1].name
+        const old2 = moves[moveIdx2].name
 
-        // Spawn hit effect when punch/kick lands
-        const s1 = sequence[seqIdx1]
-        const s2 = sequence[seqIdx2]
-        if (s1 === 'punch' || s1 === 'kick') {
-          spawnEffect(f2.x, f2.y - 50, s1 === 'kick' ? 'kick' : 'punch')
-          f2.hitFlash = 8
+        moveIdx1 = (moveIdx1 + 1) % moves.length
+        moveIdx2 = (moveIdx2 + 1) % moves.length
+        moveT = 0
+
+        // Spawn effects when attack connects
+        const new1 = moves[moveIdx1].name
+        const new2 = moves[moveIdx2].name
+
+        if ((old1 === 'jab' || old1 === 'cross' || old1 === 'uppercut') && new1 === 'idle') {
+          spawnHit(cx + 30, groundY - 55, old1)
+          hitFlash2 = 10
         }
-        if (s2 === 'punch' || s2 === 'kick') {
-          spawnEffect(f1.x, f1.y - 50, s2 === 'kick' ? 'kick' : 'punch')
-          f1.hitFlash = 8
+        if ((old1 === 'kick_high') && new1 === 'idle') {
+          spawnHit(cx + 40, groundY - 70, 'kick')
+          hitFlash2 = 12
+        }
+        if ((old2 === 'jab' || old2 === 'cross' || old2 === 'uppercut') && new2 === 'idle') {
+          spawnHit(cx - 30, groundY - 55, old2)
+          hitFlash1 = 10
+        }
+        if ((old2 === 'kick_high') && new2 === 'idle') {
+          spawnHit(cx - 40, groundY - 70, 'kick')
+          hitFlash1 = 12
         }
       }
 
-      f1.state = sequence[seqIdx1]
-      f2.state = sequence[seqIdx2]
-      if (f1.hitFlash > 0) f1.hitFlash--
-      if (f2.hitFlash > 0) f2.hitFlash--
+      if (hitFlash1 > 0) hitFlash1--
+      if (hitFlash2 > 0) hitFlash2--
 
-      // Ground line
-      ctx.strokeStyle = 'rgba(255,255,255,0.08)'
+      // Ground
+      ctx.strokeStyle = 'rgba(255,255,255,0.07)'
       ctx.lineWidth = 1
       ctx.beginPath()
-      ctx.moveTo(0, groundY + 2)
-      ctx.lineTo(canvas.width, groundY + 2)
+      ctx.moveTo(cx - 160, groundY)
+      ctx.lineTo(cx + 160, groundY)
       ctx.stroke()
 
-      // Draw fighters
-      drawStickman(f1.x, f1.y, 1, f1.state, seqT, f1.hitFlash, 'rgba(255,255,255,0.7)')
-      drawStickman(f2.x, f2.y, -1, f2.state, seqT, f2.hitFlash, 'rgba(255,255,255,0.7)')
+      // Stage glow under fighters
+      const grd = ctx.createRadialGradient(cx, groundY, 0, cx, groundY, 140)
+      grd.addColorStop(0, 'rgba(255,255,255,0.04)')
+      grd.addColorStop(1, 'rgba(255,255,255,0)')
+      ctx.fillStyle = grd
+      ctx.beginPath()
+      ctx.ellipse(cx, groundY, 140, 20, 0, 0, Math.PI * 2)
+      ctx.fill()
 
-      // VS text
-      ctx.fillStyle = 'rgba(255,255,255,0.06)'
-      ctx.font = `bold ${Math.min(canvas.width * 0.08, 80)}px serif`
-      ctx.textAlign = 'center'
-      ctx.fillText('VS', cx, groundY - 60)
+      // Draw fighters closer together
+      const gap = Math.min(canvas.width * 0.065, 70)
+      drawFighter(cx - gap, groundY, 1, curMove1.name, moveT, curMove1.dur, hitFlash1)
+      drawFighter(cx + gap, groundY, -1, curMove2.name, moveT, curMove2.dur, hitFlash2)
 
-      // Update + draw effects
+      // Effects
       for (let i = effects.length - 1; i >= 0; i--) {
         const e = effects[i]
-        e.r += 3
-        e.op -= 0.04
+        e.x += e.vx
+        e.y += e.vy
+        e.vy += 0.15 // gravity on sparks
+        e.r += e.type === 'spark' ? 0.5 : 2.5
+        e.op -= e.type === 'spark' ? 0.05 : 0.035
+
         if (e.op <= 0) { effects.splice(i, 1); continue }
 
-        ctx.strokeStyle = `rgba(255,255,255,${e.op * 0.6})`
-        ctx.lineWidth = 1
-        ctx.beginPath()
-        ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2)
-        ctx.stroke()
-
-        // Star burst
-        if (e.type === 'punch') {
-          for (let j = 0; j < 6; j++) {
-            const angle = (j / 6) * Math.PI * 2 + t * 0.1
+        if (e.type === 'spark') {
+          ctx.fillStyle = `rgba(255,255,255,${e.op})`
+          ctx.beginPath()
+          ctx.arc(e.x, e.y, 1.5, 0, Math.PI * 2)
+          ctx.fill()
+        } else if (e.type === 'kick') {
+          ctx.strokeStyle = `rgba(255,255,255,${e.op * 0.7})`
+          ctx.lineWidth = 1.5
+          ctx.beginPath()
+          ctx.arc(e.x, e.y, e.r, 0, Math.PI * 1.5)
+          ctx.stroke()
+          // Swoosh lines
+          for (let j = 0; j < 4; j++) {
+            const a = (j / 4) * Math.PI + t * 0.05
             ctx.beginPath()
             ctx.moveTo(e.x, e.y)
-            ctx.lineTo(e.x + Math.cos(angle) * e.r * 0.8, e.y + Math.sin(angle) * e.r * 0.8)
+            ctx.lineTo(e.x + Math.cos(a) * e.r, e.y + Math.sin(a) * e.r * 0.6)
             ctx.stroke()
           }
         } else {
-          // Kick — arc
+          // Punch burst
+          ctx.strokeStyle = `rgba(255,255,255,${e.op * 0.6})`
+          ctx.lineWidth = 1
           ctx.beginPath()
-          ctx.arc(e.x, e.y, e.r * 0.6, 0, Math.PI)
+          ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2)
           ctx.stroke()
+          // Star
+          for (let j = 0; j < 8; j++) {
+            const a = (j / 8) * Math.PI * 2
+            ctx.beginPath()
+            ctx.moveTo(e.x + Math.cos(a) * e.r * 0.3, e.y + Math.sin(a) * e.r * 0.3)
+            ctx.lineTo(e.x + Math.cos(a) * e.r, e.y + Math.sin(a) * e.r)
+            ctx.stroke()
+          }
         }
       }
 
-      // Subtle dust particles on ground
+      // VS
       ctx.fillStyle = 'rgba(255,255,255,0.04)'
-      ;[f1.x, f2.x].forEach(fx => {
-        if (f1.state === 'walk' || f2.state === 'walk') {
-          ctx.beginPath()
-          ctx.arc(fx + (Math.random() - 0.5) * 20, groundY + 2, Math.random() * 3, 0, Math.PI * 2)
-          ctx.fill()
-        }
-      })
+      ctx.font = `300 ${Math.min(canvas.width * 0.05, 52)}px serif`
+      ctx.textAlign = 'center'
+      ctx.fillText('VS', cx, groundY - 85)
 
       animId = requestAnimationFrame(draw)
     }
@@ -252,10 +348,7 @@ function FightingBackground() {
   }, [])
 
   return (
-    <canvas ref={canvasRef} style={{
-      position: 'fixed', inset: 0, zIndex: 0,
-      pointerEvents: 'none',
-    }} />
+    <canvas ref={canvasRef} style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }} />
   )
 }
 
@@ -289,46 +382,50 @@ export default function PortfolioPage() {
 
       <FightingBackground />
 
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: '1100px', margin: '0 auto', padding: 'clamp(32px, 6vw, 48px) clamp(16px, 4vw, 48px) 100px' }}>
+      {/* Fight arena — bottom portion of screen, projects list sits above it */}
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: '30vh', zIndex: 0, pointerEvents: 'none',
+        background: 'linear-gradient(to bottom, rgba(10,10,10,0) 0%, rgba(10,10,10,0.15) 100%)' }} />
+
+      <div style={{ position: 'relative', zIndex: 1, maxWidth: '900px', margin: '0 auto', padding: 'clamp(24px, 5vw, 48px) clamp(16px, 4vw, 48px) 48px' }}>
 
         {/* Header */}
-        <div style={{ marginBottom: '40px' }}>
-          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.58rem', color: 'rgba(255,255,255,0.28)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '10px' }}>Work</p>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 8vw, 4.5rem)', fontWeight: 300, color: '#fff', lineHeight: 0.95, marginBottom: '4px' }}>All</h1>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 8vw, 4.5rem)', fontWeight: 300, fontStyle: 'italic', lineHeight: 0.95, color: 'rgba(255,255,255,0.3)' }}>Projects</h1>
+        <div style={{ marginBottom: '32px' }}>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.58rem', color: 'rgba(255,255,255,0.28)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '8px' }}>Work</p>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.8rem, 6vw, 3.5rem)', fontWeight: 300, color: '#fff', lineHeight: 0.95, marginBottom: '4px' }}>All</h1>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.8rem, 6vw, 3.5rem)', fontWeight: 300, fontStyle: 'italic', lineHeight: 0.95, color: 'rgba(255,255,255,0.3)' }}>Projects</h1>
         </div>
 
         {/* Filters */}
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '40px' }}>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '28px' }}>
           {categories.map(cat => (
             <button key={cat} onClick={() => filter(cat)}
               style={{
                 fontFamily: 'var(--font-mono)', fontSize: '0.6rem', padding: '6px 14px',
                 cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase',
                 border: 'none', outline: 'none',
-                background: active === cat ? '#fff' : 'rgba(255,255,255,0.06)',
+                background: active === cat ? '#fff' : 'rgba(255,255,255,0.07)',
                 color: active === cat ? '#000' : 'rgba(255,255,255,0.4)',
-                transition: 'all 0.2s',
+                transition: 'all 0.2s', backdropFilter: 'blur(8px)',
               }}>
               {cat}
             </button>
           ))}
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.58rem', color: 'rgba(255,255,255,0.18)', alignSelf: 'center', marginLeft: '6px' }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.55rem', color: 'rgba(255,255,255,0.18)', alignSelf: 'center', marginLeft: '4px' }}>
             {filtered.length} projects
           </span>
         </div>
 
-        {/* List */}
+        {/* Projects — glassmorphism so fight shows through */}
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
             {[1, 2, 3, 4].map(i => (
-              <div key={i} style={{ height: '72px', background: 'rgba(255,255,255,0.02)' }} />
+              <div key={i} style={{ height: '68px', background: 'rgba(255,255,255,0.02)' }} />
             ))}
           </div>
         ) : filtered.length === 0 ? (
           <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'rgba(255,255,255,0.2)' }}>No projects found.</p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
             {filtered.map((p, i) => {
               const thumb = p.image_url || p.media?.[0]?.url
               const isHovered = hovered === p.id
@@ -339,17 +436,20 @@ export default function PortfolioPage() {
                     onMouseLeave={() => setHovered(null)}
                     style={{
                       display: 'flex', alignItems: 'center',
-                      gap: 'clamp(12px, 2vw, 24px)',
-                      padding: 'clamp(12px, 2vw, 16px) clamp(12px, 2vw, 20px)',
+                      gap: 'clamp(10px, 2vw, 20px)',
+                      padding: 'clamp(10px, 1.5vw, 14px) clamp(12px, 2vw, 18px)',
                       borderBottom: '1px solid rgba(255,255,255,0.04)',
-                      background: isHovered ? 'rgba(255,255,255,0.04)' : 'rgba(10,10,10,0.6)',
-                      backdropFilter: 'blur(8px)',
+                      // Glass effect — fight visible through list
+                      background: isHovered
+                        ? 'rgba(255,255,255,0.08)'
+                        : 'rgba(10,10,10,0.55)',
+                      backdropFilter: 'blur(12px)',
+                      WebkitBackdropFilter: 'blur(12px)',
                       transition: 'background 0.2s',
                       cursor: 'pointer',
                       position: 'relative',
                     }}>
 
-                    {/* Left bar */}
                     <div style={{
                       position: 'absolute', left: 0, top: 0, bottom: 0, width: '2px',
                       background: '#fff',
@@ -358,50 +458,48 @@ export default function PortfolioPage() {
                       transformOrigin: 'bottom',
                     }} />
 
-                    {/* Index */}
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6rem', color: 'rgba(255,255,255,0.15)', width: '24px', flexShrink: 0 }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.58rem', color: 'rgba(255,255,255,0.15)', width: '22px', flexShrink: 0 }}>
                       {String(i + 1).padStart(2, '0')}
                     </span>
 
-                    {/* Thumbnail */}
-                    <div style={{ width: 'clamp(52px, 8vw, 72px)', height: 'clamp(36px, 5vw, 46px)', flexShrink: 0, overflow: 'hidden', background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ width: 'clamp(48px, 7vw, 66px)', height: 'clamp(32px, 5vw, 42px)', flexShrink: 0, overflow: 'hidden', background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.06)' }}>
                       {thumb ? (
                         <img src={thumb} alt={p.title}
                           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', transform: isHovered ? 'scale(1.1)' : 'scale(1)', transition: 'transform 0.5s cubic-bezier(0.16,1,0.3,1)' }} />
                       ) : (
                         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: 'rgba(255,255,255,0.05)', fontStyle: 'italic' }}>{p.title[0]}</span>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', color: 'rgba(255,255,255,0.05)', fontStyle: 'italic' }}>{p.title[0]}</span>
                         </div>
                       )}
                     </div>
 
-                    {/* Title + desc */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(0.9rem, 2.5vw, 1.05rem)', fontWeight: 300, color: isHovered ? '#fff' : 'rgba(255,255,255,0.8)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', transition: 'color 0.2s' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(0.88rem, 2.5vw, 1rem)', fontWeight: 300, color: isHovered ? '#fff' : 'rgba(255,255,255,0.8)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', transition: 'color 0.2s' }}>
                         {p.title}
                       </h3>
-                      <p style={{ fontFamily: 'var(--font-body)', fontSize: 'clamp(0.65rem, 1.5vw, 0.72rem)', color: 'rgba(255,255,255,0.28)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 300 }}>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: 'clamp(0.62rem, 1.5vw, 0.7rem)', color: 'rgba(255,255,255,0.28)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 300 }}>
                         {p.description}
                       </p>
                     </div>
 
-                    {/* Tags — hide on small mobile */}
                     <div className="hide-mobile" style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
                       {p.tech_stack.slice(0, 2).map(t => (
-                        <span key={t} style={{ fontFamily: 'var(--font-mono)', fontSize: '0.55rem', padding: '2px 6px', border: `1px solid ${isHovered ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)'}`, color: isHovered ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: '0.05em', transition: 'all 0.2s' }}>
+                        <span key={t} style={{ fontFamily: 'var(--font-mono)', fontSize: '0.52rem', padding: '2px 6px', border: `1px solid ${isHovered ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.07)'}`, color: isHovered ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.22)', textTransform: 'uppercase', letterSpacing: '0.04em', transition: 'all 0.2s' }}>
                           {t}
                         </span>
                       ))}
                     </div>
 
-                    {/* Arrow */}
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: isHovered ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.1)', flexShrink: 0, transition: 'all 0.25s', transform: isHovered ? 'translateX(4px)' : 'translateX(0)' }}>→</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: isHovered ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.1)', flexShrink: 0, transition: 'all 0.25s', transform: isHovered ? 'translateX(4px)' : 'translateX(0)', display: 'inline-block' }}>→</span>
                   </div>
                 </Link>
               )
             })}
           </div>
         )}
+
+        {/* Spacer so bottom projects don't sit right on top of fighters */}
+        <div style={{ height: 'clamp(180px, 28vh, 260px)' }} />
       </div>
     </div>
   )
